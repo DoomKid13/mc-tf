@@ -110,9 +110,20 @@ resource "kubernetes_stateful_set" "minecraft-bedrock-ss" {
         }
       }
       spec {
-        
+        container {
+          name = "main"
+          image = "doomkid13/minecraft-bedrock-server"
+          image_pull_policy = "Always"
+          env_from = [{
+            config_map_ref = {
+              name = var.minecraft-bedrock-cm.metadata.name
+          }]
+          volume_mount = {}
+          
+        }
       }
     }
+    
     volume_claim_template {
       metadata {
         name = "data"
