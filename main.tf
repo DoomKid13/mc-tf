@@ -1,34 +1,30 @@
 resource "azurerm_resource_group" "rg" {
   location = var.resource_group_location
-  name     = "TF_minecraft_bedrock"
+  name     = "TF_minecraft"
 }
 
 resource "azurerm_kubernetes_cluster" "cluster" {
-  name                = "TF_minecraft_bedrock_k8s"
+  name                = "TF_minecraft"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  dns_prefix          = "mc-bedrock"
+  dns_prefix          = "minecraft"
 
   default_node_pool {
     name       = "default"
-    node_count = "2"
-    vm_size    = "standard_d2_v2"
+    node_count = "1"
+    vm_size    = "standard_d2s_v3"
   }
 
   identity {
     type = "SystemAssigned"
   }
   
-  addon_profile {
-    http_application_routing {
-      enabled = true
-    }
-  }
+  http_application_routing_enabled = true
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "mem" {
   kubernetes_cluster_id = azurerm_kubernetes_cluster.cluster.id
   name                  = "mem"
   node_count            = "1"
-  vm_size               = "standard_d11_v2"
+  vm_size               = "standard_ds11_v2"
 }

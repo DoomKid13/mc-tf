@@ -5,7 +5,7 @@ metadata:
   name: minecraft-bedrock
   labels:
     role: service-config
-    app: minecraft-bedrock
+    app: bds
 data:
   # Find more options at https://github.com/itzg/docker-minecraft-bedrock-server#server-properties
   # Remove # from in front of line if changing from default values.
@@ -31,11 +31,16 @@ data:
   #VIEW_DISTANCE: "10"
   #TICK_DISTANCE: "4"
   #MAX_THREADS: "8"
+  #
+  ## Player Info
+  OPS: "2535408967345176"
+  WHITE_LIST_USERS: "Doom Kid 15"
+  ENABLE-LAN-VISIBILITY: "true" 
 ---
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: minecraft-bedrock
+  name: bds
 spec:
   accessModes:
     - ReadWriteOnce
@@ -47,23 +52,23 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   labels:
-    app: minecraft-bedrock
-  name: minecraft-bedrock
+    app: bds
+  name: bds
 spec:
   # never more than 1 since BDS is not horizontally scalable
   replicas: 1
-  serviceName: minecraft-bedrock
+  serviceName: bds
   selector:
     matchLabels:
-      app: minecraft-bedrock
+      app: bds
   template:
     metadata:
       labels:
-        app: minecraft-bedrock
+        app: bds
     spec:
       containers:
         - name: main
-          image: itzg/minecraft-bedrock-server
+          image: doomkid13/minecraft-bedrock-server
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
@@ -99,16 +104,19 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: minecraft-bedrock
+  name: bds
 spec:
   selector:
-    app: minecraft-bedrock
+    app: bds
   ports:
     - port: 19132
+      targetPort: 19132
       protocol: UDP
-  # ipFamily: IPv4
+      name: bds-udp  
+        #nodePort: 30000
+  ipFamilies: [IPv4]
   # Use LoadBalancer if running on a provider that supports that
-  # type: LoadBalancer
+  type: LoadBalancer
   # or use NodePort on a non-managed system;
   # however, you'll need to lookup port assigned to the service
-  type: NodePort
+  #type: NodePort
