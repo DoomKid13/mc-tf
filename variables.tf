@@ -1,9 +1,8 @@
-variable "resource_group_location" {
-  default     = "eastus"
-  description = "Location of the resource group."
+variable "location" {
+  type    = string
+  default = "eastus"
 }
 
-variable "resource_group_name_prefix" {
-  default     = "minecraft"
-  description = "Resource group prefix"
+locals {
+  cluster_name = "tf-minecraft"
 }

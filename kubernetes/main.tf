@@ -1,32 +1,6 @@
-resource "azurerm_resource_group" "rg" {
-  location = var.resource_group_location
-  name     = "TF_minecraft"
-}
-
-resource "azurerm_kubernetes_cluster" "cluster" {
-  name                = "TF_minecraft"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  dns_prefix          = "minecraft"
-
-  default_node_pool {
-    name       = "default"
-    node_count = "1"
-    vm_size    = "standard_d2s_v3"
-  }
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  http_application_routing_enabled = true
-}
-
-resource "azurerm_kubernetes_cluster_node_pool" "mem" {
-  kubernetes_cluster_id = azurerm_kubernetes_cluster.cluster.id
-  name                  = "mem"
-  node_count            = "1"
-  vm_size               = "standard_ds11_v2"
+resource "local_file" "kubeconfig" {
+  content  = var.kubeconfig
+  filename = "${path.root}/kubeconfig"
 }
 
 resource "kubernetes_config_map" "minecraft-bedrock-cm" {
@@ -73,11 +47,11 @@ resource "kubernetes_config_map" "minecraft-bedrock-cm" {
 
 resource "kubernetes_persistent_volume_claim" "minecraft-bedrock-pvc" {
   metadata {
-    name = bds
+    name = "bds"
   }
 
   spec {
-    accessModes = ["ReadWriteOnce"]
+    access_modes = ["ReadWriteOnce"]
     resources {
       requests = {
         storage = "1Gi"
@@ -97,7 +71,7 @@ resource "kubernetes_stateful_set" "minecraft-bedrock-ss" {
   spec {
     # never more than 1 since BDS is not horizontally scalable
     replicas     = 1
-    service_name = bds
+    service_name = "bds"
     selector {
       match_labels = {
         k8s-app = "bds"
@@ -109,21 +83,49 @@ resource "kubernetes_stateful_set" "minecraft-bedrock-ss" {
           k8s-app = "bds"
         }
       }
+
       spec {
         container {
-          name = "main"
-          image = "doomkid13/minecraft-bedrock-server"
+          name              = "main"
+          image             = "doomkid13/minecraft-bedrock-server"
           image_pull_policy = "Always"
-          env_from = [{
-            config_map_ref = {
-              name = var.minecraft-bedrock-cm.metadata.name
-          }]
-          volume_mount = {}
+          env_from {
+            config_map_ref {
+              name = kubernetes_config_map.minecraft-bedrock-cm.metadata[0].name
+            }
+          }
+
+          volume_mount {
+            mount_path = "/data"
+            name       = "data"
+          }
+
+          port {
+            container_port = 19132
+            protocol       = "UDP"
+          }
+
+          readiness_probe {
+            exec {
+              # force health check against IPv4 port
+              command = ["mc-monitor", "status-bedrock", "--host", "127.0.0.1"]
+            }
+            initial_delay_seconds = 30
+          }
           
+          liveness_probe {
+            exec {
+              # force health check against IPv4 port
+              command = ["mc-monitor", "status-bedrock", "--host", "127.0.0.1"]
+            }
+            initial_delay_seconds = 30
+          }
+          tty = true
+          stdin = true
         }
       }
     }
-    
+
     volume_claim_template {
       metadata {
         name = "data"
@@ -140,6 +142,29 @@ resource "kubernetes_stateful_set" "minecraft-bedrock-ss" {
         }
       }
     }
+  }
+}
+
+resource "kubernetes_service" "minecraft-bedrock-svc" {
+  metadata {
+    name = "bds"
+  }
+
+  spec {
+    type = "LoadBalancer"
+
+    selector = {
+      "app" = "bds"
+    }
+
+    port {
+      port = 19132
+      target_port = 19132
+      protocol = "UDP"
+      name = "bds-udp"
+    }
+
+    ip_families = [ "IPv4" ]
   }
 }
 

@@ -17,15 +17,32 @@ terraform {
   }
 }
 
-provider "azurerm" {
-  features {}
-
-  # subscription_id   = "${env.ARM_SUBSCRIPTION_ID}"
-  # tenant_id         = "${env.ARM_TENANT_ID}"
-  # client_id         = "${env.ARM_CLIENT_ID}"
-  # client_secret     = "${env.ARM_CLIENT_SECRET}"
+data "azurerm_kubernetes_cluster" "default" {
+  depends_on          = [module.aks-cluster] # refresh cluster state before reading
+  name                = local.cluster_name
+  resource_group_name = local.cluster_name
 }
 
 provider "kubernetes" {
-  config_path = "./kubeconfig"
+  host                   = data.azurerm_kubernetes_cluster.default.kube_config.0.host
+  client_certificate     = base64decode(data.azurerm_kubernetes_cluster.default.kube_config.0.client_certificate)
+  client_key             = base64decode(data.azurerm_kubernetes_cluster.default.kube_config.0.client_key)
+  cluster_ca_certificate = base64decode(data.azurerm_kubernetes_cluster.default.kube_config.0.cluster_ca_certificate)
+}
+
+provider "azurerm" {
+  features {}
+}
+
+module "aks-cluster" {
+  source = "./aks-cluster"
+  cluster_name = local.cluster_name
+  location     = var.location
+}
+
+module "kubernetes" {
+  depends_on   = [module.aks-cluster]
+  source = "./kubernetes"
+  cluster_name = local.cluster_name
+  kubeconfig   = data.azurerm_kubernetes_cluster.default.kube_config_raw
 }
